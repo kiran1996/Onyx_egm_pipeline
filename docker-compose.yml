@@ -9,27 +9,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d onyx"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  pipeline:
-    build: .
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PG_HOST: postgres
-      PG_PORT: 5432
-      PG_USER: postgres
-      PG_PASSWORD: postgres
-      PG_DB: onyx
-    volumes:
-      - ./1000_data:/app/1000_data
-      - ./3000_dbt_project/target:/app/3000_dbt_project/target
-      - ./logs:/app/logs
 
 volumes:
   pgdata:

@@ -4,14 +4,13 @@ A local dbt + PostgreSQL pipeline that ingests, transforms, and quality-checks
 EGM (electronic gaming machine) performance data, built for the Onyx Gaming
 data engineer technical challenge.
 
-One command runs the whole thing — Docker only, nothing else installed:
+One command runs the whole thing:
 
 ```bash
-docker compose up --build
+python 4000_pipeline/run_pipeline.py
 ```
 
-See [Getting started](#getting-started) for this step by step, plus the
-alternative local-Python-venv path.
+See [Getting started](#getting-started) for this step by step.
 
 ## Table of contents
 
@@ -63,7 +62,9 @@ framework, rather than buried in imperative Python.
 
 ## Docker: what it runs and why
 
-`docker-compose.yml` at the repo root runs two services:
+This project does **not** build a custom Docker image and there is no
+`Dockerfile`. `docker-compose.yml` at the repo root does one thing: pull and
+run the official, unmodified **`postgres:15`** image from Docker Hub.
 
 ```yaml
 services:
@@ -77,82 +78,52 @@ services:
       - "5432:5432"            # host:container — change the left side if 5432 is taken
     volumes:
       - pgdata:/var/lib/postgresql/data   # named volume: data survives container restarts
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d onyx"]
-
-  pipeline:
-    build: .                  # this repo's Dockerfile: python:3.13-slim + requirements.txt
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PG_HOST: postgres        # service name, not localhost — containers talk over the compose network
-      ...
 ```
 
-`postgres` is the official, unmodified `postgres:15` image — nothing custom
-built there. `pipeline` *is* a custom image (see `Dockerfile` at the repo
-root): it installs `requirements.txt` (which pulls in `dbt-core`/
-`dbt-postgres`) and runs `4000_pipeline/run_pipeline.py --no-docker` — the
-`--no-docker` flag matters here, since a container can't manage sibling
-containers itself; it relies on `depends_on: condition: service_healthy` to
-wait for Postgres instead.
+There's nothing to install *inside* Docker — the stock Postgres image already
+bundles everything the database itself needs. The library your machine needs
+is on the **Python** side, not the Docker side: `psycopg2-binary` (a
+PostgreSQL client driver for Python) and `sqlalchemy`, both in
+`requirements.txt`, are what let the ingestion script and dbt talk to the
+Postgres server running inside the container. Docker just hosts the server;
+Python's Postgres client libraries are how the rest of the pipeline reaches
+it over `localhost:5432`.
 
-**Run everything in containers, no local venv needed:**
+`4000_pipeline/run_pipeline.py` manages the container for you: it checks
+whether Postgres is already reachable on `localhost:5432` and, if not, runs
+`docker compose up -d` and waits (up to 30s) for it to come up. You never
+need to run `docker compose` yourself unless you want to.
+
+Useful Docker commands if you want to manage it manually:
 
 ```bash
-docker compose up --build
+docker compose up -d       # start Postgres in the background
+docker compose ps          # check it's running
+docker compose logs -f     # tail Postgres logs
+docker compose down        # stop and remove the container (data volume persists)
+docker compose down -v     # stop and remove the container AND wipe all data
 ```
 
-This starts Postgres, waits for it to report healthy, then builds and runs
-the `pipeline` image, which ingests the CSV and runs `dbt build` + `dbt docs
-generate` exactly as described below. `1000_data/` (source CSVs) and
-`3000_dbt_project/target/` (build artifacts, incl. the docs site) are bind-mounted
-so you can drop in new CSVs or view generated docs without rebuilding the image.
-
-You still don't need dbt or Postgres installed on the host either way — the
-venv-based workflow below (`pip install -r requirements.txt` +
-`python 4000_pipeline/run_pipeline.py`) still works unchanged and manages the
-`postgres` container for you the same way it always did; the `pipeline`
-service is an alternative, not a replacement.
-
-Useful Docker commands:
-
-```bash
-docker compose up --build         # run Postgres + the full pipeline in containers
-docker compose up -d postgres     # start just Postgres (for the venv-based workflow)
-docker compose ps                 # check what's running
-docker compose logs -f pipeline   # tail pipeline output
-docker compose down               # stop and remove containers (data volume persists)
-docker compose down -v            # stop and remove containers AND wipe all data
-```
+If you'd rather not use Docker at all, run `python 4000_pipeline/run_pipeline.py --no-docker`
+against any reachable Postgres instance — see [Configuration](#configuration)
+for how to point it at a non-default host.
 
 ## Getting started
 
 This section is the complete, step-by-step path from a fresh `git clone` to
-a finished pipeline run. There are two ways to do it — pick one:
-
-- **Path A (Docker only)** — nothing but Docker installed on your machine.
-  Fastest, and what to use if you don't want Python on the host at all.
-- **Path B (local Python venv)** — for iterating on the ingestion script or
-  dbt models directly, running `dbt`/`python` commands one at a time instead
-  of through the single entrypoint script.
-
-Both paths run the exact same code and produce the exact same result; they
-only differ in whether Python/dbt run on your host or inside a container.
+a finished pipeline run.
 
 ### Step 0 — Prerequisites
 
-| Requirement | Needed for | Notes |
+| Requirement | Version | Notes |
 |---|---|---|
-| Git | both paths | to clone the repo |
-| Docker Desktop (or Docker Engine + Compose plugin) | both paths | must provide `docker compose` (v2, no hyphen); Path A uses it for everything, Path B uses it just for Postgres |
-| Internet access | both paths, first run only | pulls the `python:3.13-slim`/`postgres:15` base images and installs `dbt-core`/`dbt-postgres`/`dbt_utils` |
-| Python | **Path B only** | **3.10 or newer** — developed and tested against 3.13. Check yours with `python --version` (or `python3 --version` on macOS/Linux) |
+| Git | any | to clone the repo |
+| Python | 3.10 or newer | developed and tested against 3.13. Check yours with `python --version` (or `python3 --version` on macOS/Linux) |
+| Docker Desktop (or Docker Engine + Compose plugin) | any recent version | must provide `docker compose` (v2, no hyphen); runs Postgres locally — see [Docker](#docker-what-it-runs-and-why) |
+| Internet access | — | first run pulls the `postgres:15` base image and installs `dbt-core`/`dbt-postgres`/`dbt_utils` |
 
-You do not need Postgres or dbt installed anywhere yourself, on either path
-— Postgres comes from the Docker image, and dbt is installed automatically
-from `requirements.txt` (Path B) or the `pipeline` image's build step (Path A).
+You do not need Postgres or dbt installed yourself — Postgres comes from the
+Docker image, and dbt is installed automatically from `requirements.txt`.
 
 ### Step 1 — Clone the repo
 
@@ -161,17 +132,7 @@ git clone <this repo>
 cd Onyx_egm_pipeline
 ```
 
-### Step 2A — Path A: run everything in Docker
-
-```bash
-docker compose up --build
-```
-
-That's the entire path. It builds the pipeline image, starts Postgres, waits
-for it to report healthy, then runs ingestion → `dbt build` → `dbt docs
-generate` inside the container. Skip to [Step 3](#step-3--what-success-looks-like).
-
-### Step 2B — Path B: local Python venv
+### Step 2 — Set up the virtual environment
 
 1. **Create a virtual environment** (isolates this project's Python packages
    from the rest of your machine):
@@ -208,21 +169,20 @@ generate` inside the container. Skip to [Step 3](#step-3--what-success-looks-lik
    | `dbt-core` | the dbt CLI/runtime |
    | `dbt-postgres` | dbt's Postgres adapter |
 
-4. **Run the pipeline:**
+### Step 3 — Run the pipeline
 
-   ```bash
-   python 4000_pipeline/run_pipeline.py
-   ```
+```bash
+python 4000_pipeline/run_pipeline.py
+```
 
-   This single script starts Postgres via `docker compose up -d` (only the
-   `postgres` service — Docker is still required for Path B, just for the
-   database, not the app), ingests the sample CSV, runs `dbt build`, and
-   generates the docs site. See [Running the pipeline](#running-the-pipeline)
-   for what each step does and the available flags.
+This single script starts Postgres via `docker compose up -d` if it isn't
+already running, ingests the sample CSV, runs `dbt build`, and generates the
+docs site. See [Running the pipeline](#running-the-pipeline) for what each
+step does and the available flags.
 
-### Step 3 — What success looks like
+### Step 4 — What success looks like
 
-Either path ends with a summary like this in the terminal:
+You should see a summary like this in the terminal:
 
 ```
 === Step 1/4: Ensure Postgres is running ===
@@ -244,7 +204,7 @@ Pipeline finished successfully.
 [Data quality checks](#data-quality-checks) for what it is and why it's a
 warning rather than an error. `ERROR=0` is what actually matters.
 
-### Step 4 — View the generated docs
+### Step 5 — View the generated docs
 
 ```bash
 cd 3000_dbt_project
@@ -252,8 +212,7 @@ dbt docs serve --profiles-dir .
 ```
 
 Opens a browsable site with every model, column, source, and test
-documented, plus the full lineage graph. (Path A note: `3000_dbt_project/target/`
-is bind-mounted out of the container, so this works from the host either way.)
+documented, plus the full lineage graph.
 
 ### Next steps
 
@@ -313,7 +272,7 @@ Onyx_egm_pipeline/
 │   │   │   └── sources.yml                 # raw.egm_performance source + tests
 │   │   ├── 3220_staging/
 │   │   │   ├── stg_egm_performance.sql     # typed, incrementally-loaded staging model
-│   │   │   └── stg_egm_performance.yml
+│   │   │   └── staging.yml
 │   │   └── 3230_marts/
 │   │       ├── venue_turnover.sql          # total turnover per venue
 │   │       ├── egm_revenue_by_venue.sql    # total revenue (gmp_sum) by EGM and venue
@@ -323,8 +282,7 @@ Onyx_egm_pipeline/
 │       └── generic/                        # custom reusable generic tests (see below)
 ├── 4000_pipeline/
 │   └── run_pipeline.py                     # single entrypoint: runs everything
-├── docker-compose.yml                      # postgres (stock image) + pipeline (built from Dockerfile)
-├── Dockerfile                              # pipeline image: python:3.13-slim + requirements.txt
+├── docker-compose.yml                      # local Postgres (stock postgres:15 image)
 ├── requirements.txt
 └── .env.example
 ```
@@ -396,14 +354,14 @@ staging model lands in `analytics_staging` and the marts in `analytics_marts`
 All tests are declared in yml against sources/models — there are no
 standalone singular test `.sql` files in this project.
 
-Built-in tests (`3210_source/sources.yml`, `3220_staging/stg_egm_performance.yml`, `3230_marts/marts.yml`):
+Built-in tests (`3210_source/sources.yml`, `3220_staging/staging.yml`, `3230_marts/marts.yml`):
 - `not_null` on `bus_date`, `venue_code`, `egm_description`, `manufacturer`,
   `fp` — checked on the raw source *and* on the staging model, so a bad row
   is caught immediately after ingestion, before anything downstream reads it.
 - `unique` on the mart grains (`venue_code` in `venue_turnover`, `bus_date`
   in `daily_summary`).
 
-`dbt_utils` tests (`3220_staging/stg_egm_performance.yml`):
+`dbt_utils` tests (`3220_staging/staging.yml`):
 - `accepted_range` (`min_value: 0`) on `turnover_sum` and `games_played_sum`
   — fails if either is negative. (`gmp_sum`/revenue is deliberately **not**
   checked here — it's legitimately negative on days a venue pays out more
@@ -467,12 +425,10 @@ day's rows into `1000_data/`, then run `python 4000_pipeline/run_pipeline.py
   `4000_pipeline/run_pipeline.py` does this automatically; running `dbt`
   commands directly (see "Running the pipeline" above) needs a manual
   `dbt deps` first.
-- **Two ways to run it, same code either way.** The venv workflow
-  (`pip install -r requirements.txt` + `python 4000_pipeline/run_pipeline.py`)
-  and the `docker compose up --build` workflow both run the exact same
-  `run_pipeline.py` / dbt project — the only difference is whether Python and
-  dbt run on the host or inside the `pipeline` image. See
-  [Docker](#docker-what-it-runs-and-why).
+- **No Docker image is built for this project.** The only container involved
+  runs the stock, official `postgres:15` image — see
+  [Docker](#docker-what-it-runs-and-why). Everything else (Python, dbt) runs
+  on the host, in the virtualenv.
 
 ## Troubleshooting
 

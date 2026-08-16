@@ -8,3 +8,5 @@ dbt_modules/
 3000_dbt_project/logs/
 3000_dbt_project/profiles.yml
 3000_dbt_project/dbt_packages/
+3000_dbt_project/.user.yml
+logs/

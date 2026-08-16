@@ -25,6 +25,7 @@ import subprocess
 import sys
 import time
 
+# Let this script import ingest_csv_to_postgres.py without it being a package.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "2000_ingestion"))
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -32,6 +33,8 @@ DBT_PROJECT_DIR = os.path.join(REPO_ROOT, "3000_dbt_project")
 
 
 def load_dotenv_if_present():
+    # python-dotenv is optional: if it's not installed, just rely on
+    # whatever env vars are already set in the shell.
     try:
         from dotenv import load_dotenv
         load_dotenv(os.path.join(REPO_ROOT, ".env"))
@@ -40,6 +43,8 @@ def load_dotenv_if_present():
 
 
 def run_cmd(cmd, cwd=None, env=None, fatal=True):
+    # Thin wrapper around subprocess.run that echoes the command, and by
+    # default exits the whole script if the command fails.
     print(f"\n$ {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=cwd, env=env)
     if result.returncode != 0:
@@ -53,6 +58,8 @@ def wait_for_postgres(timeout=30):
     from sqlalchemy import create_engine
     from ingest_csv_to_postgres import get_engine
 
+    # Poll until Postgres accepts a connection (e.g. while the container is
+    # still starting up), or give up after `timeout` seconds.
     deadline = time.time() + timeout
     last_error = None
     while time.time() < deadline:
@@ -70,6 +77,8 @@ def wait_for_postgres(timeout=30):
 def ensure_postgres_running(no_docker):
     from ingest_csv_to_postgres import get_engine
 
+    # If it's already up (e.g. run outside Docker, or a previous run left it
+    # running), there's nothing to do.
     try:
         with get_engine().connect():
             print("Postgres is already reachable.")
@@ -85,6 +94,8 @@ def ensure_postgres_running(no_docker):
         print("Postgres is not reachable and Docker is not installed; aborting.")
         sys.exit(1)
 
+    # Not reachable, Docker is available, and auto-start wasn't disabled:
+    # bring it up ourselves and wait until it's ready.
     print("Postgres is not reachable, starting it with `docker compose up -d`...")
     run_cmd(["docker", "compose", "up", "-d"], cwd=REPO_ROOT)
 
@@ -94,6 +105,8 @@ def ensure_postgres_running(no_docker):
 
 
 def write_dbt_profile():
+    # Copy the example profile into place so dbt has connection details
+    # without requiring a manual ~/.dbt/profiles.yml setup step.
     example = os.path.join(DBT_PROJECT_DIR, "profiles.yml.example")
     target = os.path.join(DBT_PROJECT_DIR, "profiles.yml")
     shutil.copyfile(example, target)
@@ -123,6 +136,8 @@ def main():
     ensure_postgres_running(args.no_docker)
 
     print("\n=== Step 2/4: Ingest CSV ===")
+    # Resolve a relative --csv against the repo root so the script works
+    # the same whether it's invoked from the repo root or elsewhere.
     csv_path = os.path.join(REPO_ROOT, args.csv) if not os.path.isabs(args.csv) else args.csv
     if not os.path.exists(csv_path):
         print(f"CSV file not found: {csv_path}")

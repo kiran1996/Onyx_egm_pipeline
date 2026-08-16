@@ -23,7 +23,7 @@ sources:
             tests:
               - not_null
           - name: egm_description
-            description: "Human-readable description of the gaming machine/game."
+            description: "Description of the gaming machine/game."
             tests:
               - not_null
           - name: manufacturer

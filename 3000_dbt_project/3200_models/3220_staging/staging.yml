@@ -34,11 +34,6 @@ models:
         tests:
           - dbt_utils.accepted_range:
               min_value: 0
-          # Even a machine running flat out at one game every 2 seconds, 24/7,
-          # plays well under 50,000 games in a day, so anything above
-          # 1,000,000/day is a data quality issue rather than a real figure.
-          # severity=warn: worth a human look, but shouldn't block the DAG the
-          # way a null key or negative turnover (a structurally broken row) should.
           - dbt_utils.accepted_range:
               max_value: 1000000
               config:
