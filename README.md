@@ -357,6 +357,7 @@ select * from raw.egm_performance limit 5;
 
 # Run a single SQL command without an interactive shell
 docker compose exec postgres psql -U postgres -d onyx -c "SELECT COUNT(*) FROM raw.egm_performance;"
+```
 
 ## Data transformations
 
