@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_egm_performance
+    description: >
+      Cleaned, typed view of raw EGM performance data. One row per
+      (bus_date, venue_code, egm_description, fp). Incrementally loaded: only rows
+      ingested since the last dbt run are (re)processed, keyed off `ingested_at` so
+      that both new rows and corrections to previously loaded rows are picked up.
+    columns:
+      - name: bus_date
+        description: "Business date, cast to a proper date type."
+        tests:
+          - not_null
+      - name: venue_code
+        tests:
+          - not_null
+      - name: egm_description
+        tests:
+          - not_null
+      - name: manufacturer
+        tests:
+          - not_null
+      - name: fp
+        tests:
+          - not_null
+      - name: turnover_sum
+        description: "Total amount wagered on the machine for the day. Always >= 0."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: games_played_sum
+        description: "Total games played on the machine for the day. Always >= 0."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+          # Even a machine running flat out at one game every 2 seconds, 24/7,
+          # plays well under 50,000 games in a day, so anything above
+          # 1,000,000/day is a data quality issue rather than a real figure.
+          # severity=warn: worth a human look, but shouldn't block the DAG the
+          # way a null key or negative turnover (a structurally broken row) should.
+          - dbt_utils.accepted_range:
+              max_value: 1000000
+              config:
+                severity: warn
+      - name: gmp_sum
+        description: "Gross machine profit (revenue) for the day. May be negative."

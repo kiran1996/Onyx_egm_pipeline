@@ -1,0 +1,21 @@
+# Reference copy only.
+#
+# The pipeline (4000_pipeline/run_pipeline.py) generates a real profiles.yml next to this
+# file automatically, from the same PG_* environment variables used by the ingestion
+# script, and points dbt at it via DBT_PROFILES_DIR. You do not need to copy this
+# file anywhere by hand to run the pipeline.
+#
+# It's kept here for reference, and for anyone who wants to run raw `dbt` commands
+# (e.g. `dbt docs serve`) against a hand-written profile instead.
+onyx_profile:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      threads: 4
+      host: "{{ env_var('PG_HOST', 'localhost') }}"
+      port: "{{ env_var('PG_PORT', '5432') | as_number }}"
+      user: "{{ env_var('PG_USER', 'postgres') }}"
+      pass: "{{ env_var('PG_PASSWORD', 'postgres') }}"
+      dbname: "{{ env_var('PG_DB', 'onyx') }}"
+      schema: analytics

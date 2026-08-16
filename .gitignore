@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+.env
+target/
+dbt_modules/
+*.pyc
+3000_dbt_project/target/
+3000_dbt_project/logs/
+3000_dbt_project/profiles.yml
+3000_dbt_project/dbt_packages/

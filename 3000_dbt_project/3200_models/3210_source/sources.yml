@@ -1,0 +1,44 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw schema loaded directly by 2000_ingestion/ingest_csv_to_postgres.py"
+    schema: raw
+    tables:
+      - name: egm_performance
+        description: >
+          One row per EGM (electronic gaming machine), per venue, per business day,
+          loaded as-is (all columns text) from the source CSV to preserve source
+          fidelity. Typing and validation happen in the staging model. Loaded via
+          upsert on (bus_date, venue_code, egm_description, fp), so re-ingesting a
+          file updates existing rows in place and inserts new ones.
+        columns:
+          - name: bus_date
+            description: "Business date the performance figures apply to."
+            tests:
+              - not_null
+              - valid_date
+          - name: venue_code
+            description: "Venue identifier."
+            tests:
+              - not_null
+          - name: egm_description
+            description: "Human-readable description of the gaming machine/game."
+            tests:
+              - not_null
+          - name: manufacturer
+            description: "Machine manufacturer."
+            tests:
+              - not_null
+          - name: fp
+            description: "Machine position/footprint identifier within the venue."
+            tests:
+              - not_null
+          - name: turnover_sum
+            description: "Total amount wagered (turnover) for the machine on the day."
+          - name: gmp_sum
+            description: "Gross machine profit (venue revenue) for the machine on the day. Can be negative if the machine is losing money for the venue."
+          - name: games_played_sum
+            description: "Total number of games played on the machine on the day."
+          - name: ingested_at
+            description: "Timestamp the row was last written by the ingestion script; drives incremental dbt runs."

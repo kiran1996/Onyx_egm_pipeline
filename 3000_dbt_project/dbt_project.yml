@@ -1,0 +1,28 @@
+name: 'egm_performance'
+version: '1.0.0'
+config-version: 2
+profile: 'onyx_profile'
+
+model-paths: ["3200_models"]
+test-paths: ["3300_tests"]
+macro-paths: ["3100_macros"]
+seed-paths: ["seeds"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+
+# Postgres has no built-in SAFE_CAST; this creates a plpgsql equivalent used by
+# the bus_date format test in 3200_models/3210_source/sources.yml.
+on-run-start:
+  - "{{ create_safe_cast_to_date() }}"
+
+models:
+  egm_performance:
+    +materialized: view
+    3220_staging:
+      +materialized: incremental
+      +schema: staging
+    3230_marts:
+      +materialized: table
+      +schema: marts

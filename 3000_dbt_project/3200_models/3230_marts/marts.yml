@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: venue_turnover
+    description: "Total turnover per venue, summed across all loaded history."
+    columns:
+      - name: venue_code
+        tests:
+          - unique
+          - not_null
+
+  - name: egm_revenue_by_venue
+    description: "Total revenue (gmp_sum) aggregated by EGM within each venue."
+    columns:
+      - name: venue_code
+        tests:
+          - not_null
+      - name: egm_description
+        tests:
+          - not_null
+
+  - name: daily_summary
+    description: "Daily turnover and revenue summary across all venues."
+    columns:
+      - name: bus_date
+        tests:
+          - unique
+          - not_null

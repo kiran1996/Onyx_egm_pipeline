@@ -1,0 +1,6 @@
+pandas>=1.5
+sqlalchemy>=1.4
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+dbt-core>=1.5
+dbt-postgres>=1.5
