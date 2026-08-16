@@ -340,6 +340,24 @@ staging model lands in `analytics_staging` and the marts in `analytics_marts`
 (the profile's base schema, `analytics`, combined with each model's
 `+schema` config in `dbt_project.yml`).
 
+### Running SQL against the containerized Postgres
+
+To run SQL directly against the database inside the container (outside of
+dbt/ingestion), use `docker compose exec` to get a `psql` shell or run
+one-off commands:
+
+```bash
+# Open an interactive psql shell inside the container
+docker compose exec postgres psql -U postgres -d onyx
+#Once inside
+\dn
+\dt raw.*
+select * from raw.egm_performance limit 5;
+
+
+# Run a single SQL command without an interactive shell
+docker compose exec postgres psql -U postgres -d onyx -c "SELECT COUNT(*) FROM raw.egm_performance;"
+
 ## Data transformations
 
 | Model | Grain | Purpose |
